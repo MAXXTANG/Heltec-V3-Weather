@@ -117,7 +117,7 @@ bool startOled(bool warm){
     if(Wire.endTransmission()!=0){Serial.println("OLED_NOT_FOUND");return false;}
     if(!warm){
         const uint8_t init[]={0xae,0xd5,0x80,0xa8,0x3f,0xd3,0,0x40,0x8d,0x14,0x20,0,
-                              0xa1,0xc8,0xda,0x12,0x81,0x18,0xd9,0xf1,0xdb,0x40,0xa4,0xa6,0xaf};
+                              0xa1,0xc8,0xda,0x12,0x81,0x02,0xd9,0xf1,0xdb,0x40,0xa4,0xa6,0xaf};
         if(!oledCommands(init,sizeof(init)))return false;
     }
     Serial.printf("OLED_READY retained=%d\n",warm);
@@ -126,7 +126,7 @@ bool startOled(bool warm){
 bool flushOled(){
     if(!oledReady)return false;
     tm local={};time_t now=time(nullptr);localtime_r(&now,&local);
-    const uint8_t level[]={0x81,(uint8_t)((clockValid() && (local.tm_hour>=22||local.tm_hour<7))?2:24)};
+    const uint8_t level[]={0x81,(uint8_t)((clockValid() && (local.tm_hour>=22||local.tm_hour<7))?0:2)};
     const uint8_t range[]={0x21,0,127,0x22,0,7};
     bool ok=oledCommands(level,sizeof(level)) && oledCommands(range,sizeof(range));
     for(size_t i=0;ok && i<sizeof(frame.pixels);i+=16){
