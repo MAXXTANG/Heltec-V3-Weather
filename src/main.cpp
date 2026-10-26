@@ -126,7 +126,7 @@ bool startOled(bool warm){
 bool flushOled(){
     if(!oledReady)return false;
     tm local={};time_t now=time(nullptr);localtime_r(&now,&local);
-    const uint8_t level[]={0x81,(uint8_t)((clockValid() && (local.tm_hour>=22||local.tm_hour<7))?4:24)};
+    const uint8_t level[]={0x81,(uint8_t)((clockValid() && (local.tm_hour>=22||local.tm_hour<7))?2:24)};
     const uint8_t range[]={0x21,0,127,0x22,0,7};
     bool ok=oledCommands(level,sizeof(level)) && oledCommands(range,sizeof(range));
     for(size_t i=0;ok && i<sizeof(frame.pixels);i+=16){

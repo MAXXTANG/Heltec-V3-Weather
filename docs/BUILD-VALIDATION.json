@@ -5,7 +5,14 @@
   "native_tests": "passed with ASan/UBSan",
   "esp32s3_build": "passed",
   "app_bytes": 955680,
-  "app_sha256": "6de51123be9342b9c8abd9ae0be8c37218b97fa5b3dc50259f2b2626d0ff6e0d",
+  "app_sha256": "6b697fe08b01fbe73ae1186e9b32d4b90661345eacf77e7e9eb65f2a2897f7e5",
   "binary_distribution": "source only; compiled artifact not committed",
-  "hardware_test": "v1.1.6 predecessor verified; public v1.2.0 compiled/native-tested only"
+  "hardware_test": "v1.1.6 predecessor verified; public v1.2.0 compiled/native-tested only",
+  "oled_contrast": {
+    "day": 24,
+    "night": 2,
+    "night_start": "22:00",
+    "night_end": "07:00",
+    "timezone": "configured device timezone"
+  }
 }
