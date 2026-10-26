@@ -9,4 +9,5 @@ done
 build/render build/clock.pbm build/weather.pbm build
 build/schedule
 build/battery
+python3 tests/runtime_contract.py
 python3 tools/render_previews.py

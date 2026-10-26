@@ -38,4 +38,13 @@ int main() {
         check(later + second, false, later + 300);
     }
     std::puts("network schedule: 30 boundary cases passed");
+    constexpr int64_t now = INT64_C(9000000000);
+    assert(nextIdleWakeUs(now, 60000000, 0) == now + 60000000);
+    assert(nextIdleWakeUs(now, 10000000, now + 5000000) == now + 5000000);
+    assert(nextIdleWakeUs(now, 10000000, now + 20000000) == now + 10000000);
+    assert(nextIdleWakeUs(now, 10000000, now + 10000000) == now + 10000000);
+    assert(nextIdleWakeUs(now, 10000000, now) == now + 10000000);
+    assert(nextIdleWakeUs(now, 10000000, now - 1) == now + 10000000);
+    assert(nextIdleWakeUs(now, 1, now + 5000000) == now + 1);
+    std::puts("idle schedule: minute/battery deadlines passed; no page timer");
 }

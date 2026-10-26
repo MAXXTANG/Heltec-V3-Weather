@@ -44,9 +44,8 @@ portMUX_TYPE weatherMux=portMUX_INITIALIZER_UNLOCKED;
 TaskHandle_t networkTask=nullptr;
 bool networkBusy=false;
 uint32_t networkGeneration=0;
-static constexpr int64_t PAGE_US=3000000;
 bool weatherPage=false,buttonDown=false,longPressHandled=false,setupRequested=false;
-int64_t nextPageUs=0,buttonStartedUs=0,pageShownUs=0;
+int64_t buttonStartedUs=0;
 time_t shownMinute=-1;
 uint32_t seenGeneration=0;
 uint8_t dumpPages=3;
@@ -200,7 +199,7 @@ void provision(){
     if(!WiFi.softAP(ap.c_str(),password.c_str())){message("Wi-Fi setup failed","Press RESET to retry");stopWifi();deepSleep(true);}
     DNSServer dns;dns.start(53,"*",WiFi.softAPIP());WebServer server(80);
     bool restart=false;
-    const char *html=R"HTML(<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Heltec V3 Clock</title><style>body{font:18px system-ui;max-width:480px;margin:30px auto;padding:16px;background:#f3f4f5}input,button{box-sizing:border-box;width:100%;padding:14px;margin:8px 0}button{background:#152535;color:white;border:0;border-radius:8px}</style><h1>Heltec V3 時鐘</h1><p>網路氣象 · 七段式時鐘</p><form method="post" action="/save"><label>家中 2.4 GHz Wi-Fi 名稱<input name="ssid" maxlength="32" required autocomplete="off"></label><label>Wi-Fi 密碼<input name="password" type="password" maxlength="63" autocomplete="new-password"></label><button>儲存並連線</button></form><p>時鐘與天氣每 3 秒輪播，每 15 分鐘更新天氣。長按 PRG／BOOT 3 秒可重新配網。</p><p>Weather data by <a href="https://open-meteo.com/">Open-Meteo.com</a> · <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a></p></html>)HTML";
+    const char *html=R"HTML(<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Heltec V3 Clock</title><style>body{font:18px system-ui;max-width:480px;margin:30px auto;padding:16px;background:#f3f4f5}input,button{box-sizing:border-box;width:100%;padding:14px;margin:8px 0}button{background:#152535;color:white;border:0;border-radius:8px}</style><h1>Heltec V3 時鐘</h1><p>網路氣象 · 七段式時鐘</p><form method="post" action="/save"><label>家中 2.4 GHz Wi-Fi 名稱<input name="ssid" maxlength="32" required autocomplete="off"></label><label>Wi-Fi 密碼<input name="password" type="password" maxlength="63" autocomplete="new-password"></label><button>儲存並連線</button></form><p>短按 PRG／BOOT 切換時鐘與天氣頁，每 15 分鐘更新天氣。長按 PRG／BOOT 3 秒可重新配網。</p><p>Weather data by <a href="https://open-meteo.com/">Open-Meteo.com</a> · <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a></p></html>)HTML";
     server.on("/",HTTP_GET,[&](){server.send(200,"text/html; charset=utf-8",html);});
     server.on("/save",HTTP_POST,[&](){
         String ssid=server.arg("ssid"),pass=server.arg("password");
@@ -353,13 +352,11 @@ void showPage(const WeatherCache &data,bool busy,bool switched){
     view.stale=!data.valid || now-data.fetched>1800 || now-data.observed>3600;
     if(!oledReady)oledReady=startOled(false);
     renderClockPage(frame,view,weatherPage);oledReady=flushOled();
-    pageShownUs=esp_timer_get_time();
+    const int64_t pageShownUs=esp_timer_get_time();
     Serial.printf("PAGE name=%s switched=%d monotonic_ms=%lld time=%s weatherValid=%d stale=%d network=%d\n",
         weatherPage?"weather":"clock",switched,(long long)(pageShownUs/1000),view.time,view.valid,view.stale,busy);
     const uint8_t bit=weatherPage?2:1;
-    // Defer diagnostic UART snapshots if they could delay the next visible page.
-    const bool snapshotFits=nextPageUs==0 || nextPageUs-esp_timer_get_time()>400000;
-    if((dumpPages&bit) && snapshotFits){dumpFrame();dumpPages&=~bit;}
+    if(dumpPages&bit){dumpFrame();dumpPages&=~bit;}
 }
 void sleepUntil(int64_t deadline){
     // Only the UI task requests network work, and it never does so while asleep.
@@ -389,7 +386,7 @@ void setup(){
     restoreOutputs();startBattery();oledReady=startOled(warm);
     if(!warm)sleepRadio();
     cached.magic=MAGIC;++cached.wakes;
-    Serial.printf("V3_CLOCK version=1.2.0 wake=%d retained=%d carousel_ms=3000 cpuMHz=%u\n",
+    Serial.printf("V3_CLOCK version=1.2.1 wake=%d retained=%d page_mode=manual cpuMHz=%u\n",
         (int)wake,warm,getCpuFrequencyMhz());
     WiFi.onEvent([](WiFiEvent_t event,WiFiEventInfo_t info){
         if(event==ARDUINO_EVENT_WIFI_STA_DISCONNECTED)
@@ -406,7 +403,6 @@ void setup(){
     }
     showPage(cacheSnapshot(),false,false);
     shownMinute=time(nullptr)/60;
-    nextPageUs=pageShownUs+PAGE_US;
     requestNetwork();
 }
 void loop(){
@@ -421,9 +417,6 @@ void loop(){
         buttonDown=false;
         if(!longPressHandled && nowUs-buttonStartedUs>=30000){
             weatherPage=!weatherPage;buttonSwitched=true;
-            // Give the manually selected page a full interval, even if the
-            // previous automatic deadline fell during this button press.
-            nextPageUs=nowUs+PAGE_US;
             Serial.printf("BUTTON_PAGE name=%s\n",weatherPage?"weather":"clock");
         }
     }
@@ -432,31 +425,22 @@ void loop(){
     if(!busy && getCpuFrequencyMhz()!=80){setCpuFrequencyMhz(80);Serial.println("CPU_IDLE mhz=80");}
     if(setupRequested && !busy){provision();return;}
     if(!busy && !setupRequested && time(nullptr)>=data.nextNetwork){requestNetwork();data=cacheSnapshot(&busy,&generation);}
-    bool redraw=buttonSwitched,switched=buttonSwitched;
-    if(!buttonDown && nowUs>=nextPageUs){
-        int64_t steps=(nowUs-nextPageUs)/PAGE_US+1;
-        if(steps%2)weatherPage=!weatherPage;
-        nextPageUs+=steps*PAGE_US;redraw=true;switched=true;
-    }
+    bool redraw=buttonSwitched;
     if(generation!=seenGeneration){seenGeneration=generation;dumpPages=3;redraw=true;}
     time_t minute=time(nullptr)/60;
     if(minute!=shownMinute){shownMinute=minute;redraw=true;}
-    if(redraw){
-        showPage(data,busy,switched);
-        if(buttonSwitched)nextPageUs=pageShownUs+PAGE_US;
-    }
-    // Check after advancing/rendering a due page: light sleep normally wakes
-    // exactly at the old deadline, leaving no sampling window before it.
+    if(redraw)showPage(data,busy,buttonSwitched);
+    // Background updates redraw the selected page without changing it.
     nowUs=esp_timer_get_time();
-    if(batteryEnable>=0 && !busy && !buttonDown && nowUs>=nextBatteryUs && nextPageUs-nowUs>200000){
+    if(batteryEnable>=0 && !busy && !buttonDown && nowUs>=nextBatteryUs){
         const int previous=batteryLevel;readBattery();
         if(previous!=batteryLevel)showPage(data,busy,false);
     }
     if(busy || buttonDown || setupRequested){delay(10);return;}
-    // Keep minute ticks and the date correct without shifting the 3-second cadence.
+    // Wake for clock/date updates or battery sampling; PRG can wake us earlier.
     timeval tv;gettimeofday(&tv,nullptr);
     const int64_t toMinute=(60-tv.tv_sec%60)*1000000LL-tv.tv_usec;
-    int64_t deadline=esp_timer_get_time()+toMinute;
-    if(nextPageUs<deadline)deadline=nextPageUs;
+    const int64_t deadline=nextIdleWakeUs(esp_timer_get_time(),toMinute,
+                                           batteryEnable>=0?nextBatteryUs:0);
     sleepUntil(deadline);
 }

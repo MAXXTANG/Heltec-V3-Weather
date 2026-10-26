@@ -5,7 +5,7 @@
 A Wi-Fi weather clock for **Heltec WiFi LoRa 32 V3**, with a 128 × 64 OLED,
 seven-segment numerals, weather icons, humidity and a battery indicator.
 
-把 Heltec V3 變成小型氣象時鐘：每 3 秒輪播時間與天氣頁，也能短按 PRG 手動切頁。
+把 Heltec V3 變成小型氣象時鐘：短按 PRG 手動切換時間與天氣頁，畫面持續停留在所選頁面。
 不需要室外感測器，透過 Wi-Fi 取得網路天氣。預設示範地點為台灣礁溪，時區 UTC+8。
 
 [MIT license](LICENSE) · [Weather icons](docs/WEATHER-ICONS.md) · [Privacy review](docs/PRIVACY.md) · [Third-party notices](THIRD_PARTY_NOTICES.md)
@@ -23,23 +23,23 @@ Weather data by [Open-Meteo](https://open-meteo.com/), [CC BY 4.0](https://creat
 
 ## 公開版介面 / Interface
 
-![Clock and weather carousel](docs/images/ui-carousel.gif)
+![Clock and weather page examples](docs/images/ui-carousel.gif)
 
-這是同一份韌體繪圖程式產生的示範資料，不是即時氣象或照片。公開版使用可再散布的
+動畫依序展示兩頁；實機以按鈕切換，不會自動輪播。這是同一份韌體繪圖程式產生的示範資料，不是即時氣象或照片。公開版使用可再散布的
 Barlow Condensed 字型；大數字、日期數字與濕度數字由程式繪製七段式字形。
 
 - 頂列固定：電池圖示 → `JIAOXI` → 英文星期／日期。
 - 時間頁：滿版七段式 `HH:MM`。
 - 天氣頁：左側置中圖示與濕度，右側大溫度及 `°`。
 - 11 種原生天氣圖示，依天氣代碼與日夜狀態切換，不在天氣頁顯示英文天氣名稱。
-- 每 15 分鐘更新天氣並 NTP 校時；下載期間仍維持輪播。
+- 開機顯示時間頁；每分鐘更新時間，每 15 分鐘更新天氣並 NTP 校時，背景更新維持所選頁面。
 - 更新失敗保留舊資料，約 5 分鐘後重試；資料過期時出現 `!`。
 
 ## PRG 與配網 / Controls
 
 | 操作 | 功能 |
 | --- | --- |
-| 短按 PRG／BOOT | 在放開時切換時間／天氣頁，從新頁面重新計算 3 秒輪播 |
+| 短按 PRG／BOOT | 在放開時切換時間／天氣頁，停留至下一次短按 |
 | 長按 PRG／BOOT 約 3 秒 | 開啟 Wi-Fi 配網；若正在下載，等該次下載結束後開啟 |
 | RESET | 重新開機，保留已存 Wi-Fi 設定 |
 
@@ -54,8 +54,8 @@ Wi-Fi 名稱與密碼只在裝置 NVS 中保存，原始碼沒有預填任何使
 這不是精密電量百分比；充電、負載與電池型號都會影響讀值。
 只有 USB、沒有電池時，無法可靠判斷電池是否存在。
 
-韌體會辨識 V3／V3.1 與 V3.2 的電池量測控制方向。Wi-Fi 關閉後在切頁之間使用
-light sleep，OLED 持續顯示；LoRa 不參與天氣接收，開機後設為休眠。
+韌體會辨識 V3／V3.1 與 V3.2 的電池量測控制方向。Wi-Fi 關閉後使用
+light sleep，等按鍵、整分鐘或電池量測時間喚醒；OLED 持續顯示。LoRa 不參與天氣接收，開機後設為休眠。
 一般活動頻率為 80 MHz，網路工作時暫用 240 MHz。OLED 對比值白天為 2，夜間 22:00～07:00 降為 0（依裝置設定時區；控制值範圍為 0～255，0 是最低對比設定）。開機及時間同步前使用 2。
 尚未提供平均電流或電池續航的實測保證。
 
@@ -78,7 +78,7 @@ Windows 可用 `.venv\Scripts\activate` 啟用虛擬環境。若接了多個序�
 加上 `--upload-port` 指定目標；這份韌體適用 V3，不能刷到 Wireless Paper。
 
 建置結果位於 `.pio/build/heltec-v3/`。這個公開 repo 提供原始碼，不包含任何原機 Flash／NVS
-備份或舊版韌體二進位。公開版 v1.2.0 已通過原生測試及 ESP32-S3 編譯，未另行聲稱此版完成實機刷寫。
+備份或舊版韌體二進位。公開版 v1.2.1 的編譯與驗證記錄見 [BUILD-VALIDATION.json](docs/BUILD-VALIDATION.json)。
 
 ## 修改地點 / Location
 

@@ -1,13 +1,13 @@
 {
-  "version": "1.2.0",
+  "version": "1.2.1",
   "board": "Heltec WiFi LoRa 32 V3",
   "source_license": "MIT with OFL font exception",
-  "native_tests": "passed with ASan/UBSan",
+  "native_tests": "passed with ASan/UBSan; manual-page runtime contract and minute/battery wake scheduling passed",
   "esp32s3_build": "passed",
-  "app_bytes": 955680,
-  "app_sha256": "0bd00f43d9f9b03daa64fd96b0aa6bd99ed7a37c40c77a12571a53877bd11f31",
+  "app_bytes": 955376,
+  "app_sha256": "50f9e0a7b51dd435b45e1791b603413f2bc61737d81425ef243ab49ceed99593",
   "binary_distribution": "source only; compiled artifact not committed",
-  "hardware_test": "v1.1.6 predecessor verified; public v1.2.0 compiled/native-tested only",
+  "hardware_test": "public v1.2.1 compiled/native-tested only; matching private-font v1.1.7 not flashed because USB serial port was unavailable",
   "oled_contrast": {
     "day": 2,
     "night": 0,
@@ -15,5 +15,7 @@
     "night_end": "07:00",
     "timezone": "configured device timezone",
     "startup": 2
-  }
+  },
+  "page_mode": "manual PRG short press only",
+  "startup_page": "clock"
 }
