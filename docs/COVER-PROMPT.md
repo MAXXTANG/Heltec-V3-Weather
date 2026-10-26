@@ -1,0 +1,9 @@
+# Cover provenance
+
+Generated with the built-in image generation tool using the two owner-provided,
+metadata-free device photos as visual references. This cover is an AI-assisted
+illustration; the separate `*-in-use.jpg` files are the original real-device photos.
+
+## Prompt
+
+Use case: product-mockup. Create a polished landscape GitHub project cover for the open-source project titled exactly "Heltec V3 Weather". Use the two supplied real device photographs as subject references: the same small white Heltec WiFi LoRa 32 V3 circuit board, transparent screen cover, two buttons on the left, tiny cyan OLED, copper antenna on top, black USB-C connection. One photo shows the weather screen (cloud icon, large seven-segment 23.6°, small 85%); the other shows the seven-segment 19:16 clock. These are reference photos, not assets to obscure with text. Present a clean, accurate editorial product illustration inspired by this real device; remove the laptop, hand, room and any identifying background. Keep the board proportions credible and use only one hero board, displaying the weather screen with a tiny battery icon before JIAOXI. Add a small, clearly graphical inset of the time screen to communicate the two-page clock/weather carousel. Wide 16:9 composition, light neutral background, black typography, restrained cyan accents echoing the OLED, generous negative space, subtle technical grid and a few small coherent outline weather symbols. Large readable title "Heltec V3 Weather"; supporting text only "ESP32-S3 · OLED · Wi-Fi" and small "Open source · MIT". No extra slogans, no URLs, no people, no unrequested brands, no personal data. This is a project cover illustration, not a purported documentary photograph. Aim for a refined hardware project cover, sharp product detail, calm hierarchy, clear exact typography.

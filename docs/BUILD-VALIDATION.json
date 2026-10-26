@@ -1,0 +1,11 @@
+{
+  "version": "1.2.0",
+  "board": "Heltec WiFi LoRa 32 V3",
+  "source_license": "MIT with OFL font exception",
+  "native_tests": "passed with ASan/UBSan",
+  "esp32s3_build": "passed",
+  "app_bytes": 955680,
+  "app_sha256": "6de51123be9342b9c8abd9ae0be8c37218b97fa5b3dc50259f2b2626d0ff6e0d",
+  "binary_distribution": "source only; compiled artifact not committed",
+  "hardware_test": "v1.1.6 predecessor verified; public v1.2.0 compiled/native-tested only"
+}
