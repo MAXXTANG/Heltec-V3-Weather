@@ -7,7 +7,7 @@
   "app_bytes": 955376,
   "app_sha256": "50f9e0a7b51dd435b45e1791b603413f2bc61737d81425ef243ab49ceed99593",
   "binary_distribution": "source only; compiled artifact not committed",
-  "hardware_test": "public v1.2.1 compiled/native-tested only; matching private-font v1.1.7 not flashed because USB serial port was unavailable",
+  "hardware_test": "matching manual-page control verified on private-font v1.1.7: 90-second capture and two GPIO0 input pulses passed; public v1.2.1 compiled/native-tested only",
   "oled_contrast": {
     "day": 2,
     "night": 0,
