@@ -65,8 +65,8 @@ struct Countdown {
             v.phase=TimerPhase::Counting;
             // Ceil prevents showing 00:00 before the actual deadline.
             v.hundredths=(int)((remaining+9999)/10000);
-            if(remaining<=5000000)
-                v.visible=((5000000-remaining)/125000)%2==0; // 4 Hz.
+            if(remaining<=10000000)
+                v.visible=((10000000-remaining)/125000)%2==0; // 4 Hz.
             else if(remaining<=15000000)
                 v.visible=((15000000-remaining)/500000)%2==0; // 1 Hz.
         }else if(elapsed<DurationUs+ZeroHoldUs){

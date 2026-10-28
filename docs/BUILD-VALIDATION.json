@@ -1,13 +1,13 @@
 {
-  "version": "1.2.2",
+  "version": "1.2.3",
   "board": "Heltec WiFi LoRa 32 V3",
   "source_license": "MIT with OFL font exception",
   "native_tests": "passed with ASan/UBSan; gestures, monotonic countdown boundaries, blink rates, 3001 numeral layouts, 100 fireworks frames, manual pages and scheduling",
   "esp32s3_build": "passed",
   "app_bytes": 957984,
-  "app_sha256": "a06d7fc854b55bd16208e21397a365ce9a47cd514466b1c2fe26be8285aaf9e4",
+  "app_sha256": "340bb050262dbf9f3346b6f6a3ac3a8f9aba15a89cf20695fc3d309c48e97378",
   "binary_distribution": "source only; compiled artifact not committed",
-  "hardware_test": "identical countdown, gesture, drawing and loop code validated on private-font v1.1.8; public-font v1.2.2 compiled/native-tested only",
+  "hardware_test": "10-second fast-blink boundary compiled/native-tested; not flashed because USB serial port was unavailable",
   "oled_contrast": {
     "day": 2,
     "night": 0,
@@ -24,14 +24,14 @@
     "display": "SS:hundredths",
     "frame_interval_us": 40000,
     "blink_last_15s_hz": 1,
-    "blink_last_5s_hz": 4,
     "zero_hold_us": 200000,
     "fireworks_us": 4000000,
     "return": "previously selected clock/weather page",
     "clock": "esp_timer monotonic microseconds",
-    "single_click_delay_us": 400000
+    "single_click_delay_us": 400000,
+    "blink_last_10s_hz": 4
   },
-  "hardware_countdown_validation": {
+  "predecessor_hardware_countdown_validation": {
     "firmware": "1.1.8",
     "capture_seconds": 75,
     "input": "USB DTR GPIO0: one short press, three rapid presses, one short press; mechanical button not pressed",

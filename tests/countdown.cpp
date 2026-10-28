@@ -90,11 +90,15 @@ int main(int argc,char **argv){
     assert(timer.view(start+30200000).phase==TimerPhase::Fireworks);
     assert(timer.view(start+34199999).phase==TimerPhase::Fireworks);
     assert(timer.view(start+34200000).phase==TimerPhase::Normal);
-    // 1 Hz for the final 15 seconds, then 4 Hz for the final 5 seconds.
+    // 1 Hz for the final 15 seconds, then 4 Hz for the final 10 seconds.
     assert(timer.view(start+14999999).visible);
     assert(timer.view(start+15000000).visible);
     assert(!timer.view(start+15500000).visible);
     assert(timer.view(start+16000000).visible);
+    assert(!timer.view(start+19999999).visible);
+    assert(timer.view(start+20000000).visible);
+    assert(!timer.view(start+20125000).visible);
+    assert(timer.view(start+20250000).visible);
     assert(timer.view(start+25000000).visible);
     assert(!timer.view(start+25125000).visible);
     assert(timer.view(start+25250000).visible);

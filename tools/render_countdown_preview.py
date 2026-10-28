@@ -21,7 +21,7 @@ sheet = Image.new('RGB', (568, 558), '#eeeef0')
 draw = ImageDraw.Draw(sheet)
 draw.text((20, 10), '30-SECOND COUNTDOWN / NATIVE OLED PREVIEW', fill='#151515', font=title)
 examples = [(0, '30:00 / START'), (375, '15:00 / 1 Hz BLINK'),
-            (625, '05:00 / 4 Hz BLINK'), (750, '00:00 / FINISH'),
+            (500, '10:00 / 4 Hz BLINK'), (750, '00:00 / FINISH'),
             (780, 'FIREWORKS / 1.0 s'), (825, 'FIREWORKS / 2.8 s')]
 for index, (frame_index, label) in enumerate(examples):
     x = 20 + (index % 2) * 272
