@@ -7,7 +7,7 @@
   "app_bytes": 957984,
   "app_sha256": "a06d7fc854b55bd16208e21397a365ce9a47cd514466b1c2fe26be8285aaf9e4",
   "binary_distribution": "source only; compiled artifact not committed",
-  "hardware_test": "not flashed; user requested firmware preparation only",
+  "hardware_test": "identical countdown, gesture, drawing and loop code validated on private-font v1.1.8; public-font v1.2.2 compiled/native-tested only",
   "oled_contrast": {
     "day": 2,
     "night": 0,
@@ -30,5 +30,23 @@
     "return": "previously selected clock/weather page",
     "clock": "esp_timer monotonic microseconds",
     "single_click_delay_us": 400000
+  },
+  "hardware_countdown_validation": {
+    "firmware": "1.1.8",
+    "capture_seconds": 75,
+    "input": "USB DTR GPIO0: one short press, three rapid presses, one short press; mechanical button not pressed",
+    "countdown_starts": 1,
+    "countdown_zero_elapsed_us": 30000000,
+    "fireworks_start_elapsed_us": 30200000,
+    "done_elapsed_us": 34200000,
+    "fireworks_elapsed_us": 4000000,
+    "frames": 855,
+    "average_frame_rate": 25.0,
+    "oled_errors": 0,
+    "returned_page": "weather",
+    "normal_short_press_after_timer": "passed",
+    "wifi_ntp_weather": "passed",
+    "normal_light_sleep": "passed",
+    "blink_visual": "rates and pixels covered by native tests; no camera measurement"
   }
 }
