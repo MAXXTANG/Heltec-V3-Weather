@@ -392,7 +392,7 @@ void setup(){
     restoreOutputs();startBattery();oledReady=startOled(warm);
     if(!warm)sleepRadio();
     cached.magic=MAGIC;++cached.wakes;
-    Serial.printf("V3_CLOCK version=1.2.3 wake=%d retained=%d page_mode=manual cpuMHz=%u\n",
+    Serial.printf("V3_CLOCK version=1.2.4 wake=%d retained=%d page_mode=manual cpuMHz=%u\n",
         (int)wake,warm,getCpuFrequencyMhz());
     WiFi.onEvent([](WiFiEvent_t event,WiFiEventInfo_t info){
         if(event==ARDUINO_EVENT_WIFI_STA_DISCONNECTED)

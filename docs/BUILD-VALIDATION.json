@@ -1,13 +1,13 @@
 {
-  "version": "1.2.3",
+  "version": "1.2.4",
   "board": "Heltec WiFi LoRa 32 V3",
   "source_license": "MIT with OFL font exception",
   "native_tests": "passed with ASan/UBSan; gestures, monotonic countdown boundaries, blink rates, 3001 numeral layouts, 100 fireworks frames, manual pages and scheduling",
   "esp32s3_build": "passed",
-  "app_bytes": 957984,
-  "app_sha256": "340bb050262dbf9f3346b6f6a3ac3a8f9aba15a89cf20695fc3d309c48e97378",
+  "app_bytes": 957952,
+  "app_sha256": "2be15f288563cd23b20e6eef80b37d401c60cc3480cf0e2ef7d5f2efe970ec89",
   "binary_distribution": "source only; compiled artifact not committed",
-  "hardware_test": "10-second fast-blink boundary compiled/native-tested; not flashed because USB serial port was unavailable",
+  "hardware_test": "not flashed: user requested compilation first; steady above 10 seconds and final 10 seconds at 4 Hz validated by native tests",
   "oled_contrast": {
     "day": 2,
     "night": 0,
@@ -23,13 +23,14 @@
     "duration_us": 30000000,
     "display": "SS:hundredths",
     "frame_interval_us": 40000,
-    "blink_last_15s_hz": 1,
     "zero_hold_us": 200000,
     "fireworks_us": 4000000,
     "return": "previously selected clock/weather page",
     "clock": "esp_timer monotonic microseconds",
     "single_click_delay_us": 400000,
-    "blink_last_10s_hz": 4
+    "blink_last_10s_hz": 4,
+    "steady_above_seconds": 10,
+    "blink_half_period_us": 125000
   },
   "predecessor_hardware_countdown_validation": {
     "firmware": "1.1.8",
@@ -48,5 +49,10 @@
     "wifi_ntp_weather": "passed",
     "normal_light_sleep": "passed",
     "blink_visual": "rates and pixels covered by native tests; no camera measurement"
+  },
+  "charging_indicator": {
+    "status": "not implemented on unmodified board",
+    "reason": "CHRG only drives the charging LED; no charging-status signal is connected to the MCU",
+    "voltage_heuristic": false
   }
 }

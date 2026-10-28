@@ -90,12 +90,12 @@ int main(int argc,char **argv){
     assert(timer.view(start+30200000).phase==TimerPhase::Fireworks);
     assert(timer.view(start+34199999).phase==TimerPhase::Fireworks);
     assert(timer.view(start+34200000).phase==TimerPhase::Normal);
-    // 1 Hz for the final 15 seconds, then 4 Hz for the final 10 seconds.
+    // Steady above 10 seconds; four full on/off cycles per final second.
     assert(timer.view(start+14999999).visible);
     assert(timer.view(start+15000000).visible);
-    assert(!timer.view(start+15500000).visible);
+    assert(timer.view(start+15500000).visible);
     assert(timer.view(start+16000000).visible);
-    assert(!timer.view(start+19999999).visible);
+    assert(timer.view(start+19999999).visible);
     assert(timer.view(start+20000000).visible);
     assert(!timer.view(start+20125000).visible);
     assert(timer.view(start+20250000).visible);
@@ -103,6 +103,21 @@ int main(int argc,char **argv){
     assert(!timer.view(start+25125000).visible);
     assert(timer.view(start+25250000).visible);
     assert(timer.view(start+30000000).visible);
+    // No off frames in the 15-to-10-second interval.
+    for(int64_t elapsed=15000000;elapsed<20000000;elapsed+=1000)
+        assert(timer.view(start+elapsed).visible);
+    // Each complete final second contains exactly four falling/rising edges.
+    for(int second=20;second<30;++second){
+        int offEdges=0,onEdges=0;
+        bool previous=timer.view(start+INT64_C(1000000)*second).visible;
+        for(int ms=1;ms<=1000;++ms){
+            bool visible=timer.view(start+INT64_C(1000000)*second+ms*1000).visible;
+            if(previous&&!visible)++offEdges;
+            if(!previous&&visible)++onEdges;
+            previous=visible;
+        }
+        assert(offEdges==4&&onEdges==4);
+    }
     // Delayed frames derive from elapsed microseconds, never frame count.
     assert(timer.view(start+12345678).hundredths==1766);
     timer.stop();assert(timer.view(start+1000).phase==TimerPhase::Normal);
