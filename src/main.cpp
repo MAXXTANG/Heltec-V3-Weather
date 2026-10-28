@@ -17,6 +17,7 @@
 #include <driver/gpio.h>
 #include <driver/rtc_io.h>
 #include "clock_ui.h"
+#include "countdown_ui.h"
 #include "network_schedule.h"
 #include "battery_status.h"
 #include "weather_ca.h"
@@ -44,8 +45,13 @@ portMUX_TYPE weatherMux=portMUX_INITIALIZER_UNLOCKED;
 TaskHandle_t networkTask=nullptr;
 bool networkBusy=false;
 uint32_t networkGeneration=0;
-bool weatherPage=false,buttonDown=false,longPressHandled=false,setupRequested=false;
-int64_t buttonStartedUs=0;
+bool weatherPage=false,setupRequested=false;
+PrgGesture prg;
+Countdown countdown;
+int64_t nextTimerFrameUs=0;
+TimerPhase lastTimerPhase=TimerPhase::Normal;
+int lastCountdownSecond=-1;
+uint32_t timerFrames=0,timerFailures=0;
 time_t shownMinute=-1;
 uint32_t seenGeneration=0;
 uint8_t dumpPages=3;
@@ -122,7 +128,7 @@ bool startOled(bool warm){
     Serial.printf("OLED_READY retained=%d\n",warm);
     return true;
 }
-bool flushOled(){
+bool flushOled(bool diagnostic=true){
     if(!oledReady)return false;
     tm local={};time_t now=time(nullptr);localtime_r(&now,&local);
     const uint8_t level[]={0x81,(uint8_t)((clockValid() && (local.tm_hour>=22||local.tm_hour<7))?0:2)};
@@ -132,7 +138,7 @@ bool flushOled(){
         Wire.beginTransmission(OLED_ADDR);Wire.write(0x40);Wire.write(frame.pixels+i,16);
         ok=Wire.endTransmission()==0;
     }
-    Serial.printf("OLED_FRAME ok=%d clipped=%d\n",ok,frame.clipped);
+    if(diagnostic || !ok || frame.clipped)Serial.printf("OLED_FRAME ok=%d clipped=%d\n",ok,frame.clipped);
     return ok;
 }
 void dumpFrame(){
@@ -199,7 +205,7 @@ void provision(){
     if(!WiFi.softAP(ap.c_str(),password.c_str())){message("Wi-Fi setup failed","Press RESET to retry");stopWifi();deepSleep(true);}
     DNSServer dns;dns.start(53,"*",WiFi.softAPIP());WebServer server(80);
     bool restart=false;
-    const char *html=R"HTML(<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Heltec V3 Clock</title><style>body{font:18px system-ui;max-width:480px;margin:30px auto;padding:16px;background:#f3f4f5}input,button{box-sizing:border-box;width:100%;padding:14px;margin:8px 0}button{background:#152535;color:white;border:0;border-radius:8px}</style><h1>Heltec V3 時鐘</h1><p>網路氣象 · 七段式時鐘</p><form method="post" action="/save"><label>家中 2.4 GHz Wi-Fi 名稱<input name="ssid" maxlength="32" required autocomplete="off"></label><label>Wi-Fi 密碼<input name="password" type="password" maxlength="63" autocomplete="new-password"></label><button>儲存並連線</button></form><p>短按 PRG／BOOT 切換時鐘與天氣頁，每 15 分鐘更新天氣。長按 PRG／BOOT 3 秒可重新配網。</p><p>Weather data by <a href="https://open-meteo.com/">Open-Meteo.com</a> · <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a></p></html>)HTML";
+    const char *html=R"HTML(<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Heltec V3 Clock</title><style>body{font:18px system-ui;max-width:480px;margin:30px auto;padding:16px;background:#f3f4f5}input,button{box-sizing:border-box;width:100%;padding:14px;margin:8px 0}button{background:#152535;color:white;border:0;border-radius:8px}</style><h1>Heltec V3 時鐘</h1><p>網路氣象 · 七段式時鐘</p><form method="post" action="/save"><label>家中 2.4 GHz Wi-Fi 名稱<input name="ssid" maxlength="32" required autocomplete="off"></label><label>Wi-Fi 密碼<input name="password" type="password" maxlength="63" autocomplete="new-password"></label><button>儲存並連線</button></form><p>短按 PRG／BOOT 切換頁面，連按三下啟動 30 秒倒數；每 15 分鐘更新天氣。長按 PRG／BOOT 3 秒可重新配網。</p><p>Weather data by <a href="https://open-meteo.com/">Open-Meteo.com</a> · <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a></p></html>)HTML";
     server.on("/",HTTP_GET,[&](){server.send(200,"text/html; charset=utf-8",html);});
     server.on("/save",HTTP_POST,[&](){
         String ssid=server.arg("ssid"),pass=server.arg("password");
@@ -386,7 +392,7 @@ void setup(){
     restoreOutputs();startBattery();oledReady=startOled(warm);
     if(!warm)sleepRadio();
     cached.magic=MAGIC;++cached.wakes;
-    Serial.printf("V3_CLOCK version=1.2.1 wake=%d retained=%d page_mode=manual cpuMHz=%u\n",
+    Serial.printf("V3_CLOCK version=1.2.2 wake=%d retained=%d page_mode=manual cpuMHz=%u\n",
         (int)wake,warm,getCpuFrequencyMhz());
     WiFi.onEvent([](WiFiEvent_t event,WiFiEventInfo_t info){
         if(event==ARDUINO_EVENT_WIFI_STA_DISCONNECTED)
@@ -406,41 +412,79 @@ void setup(){
     requestNetwork();
 }
 void loop(){
-    int64_t nowUs=esp_timer_get_time();
-    bool buttonSwitched=false;
-    const bool pressed=digitalRead(BUTTON)==LOW;
-    if(pressed && !buttonDown){buttonDown=true;longPressHandled=false;buttonStartedUs=nowUs;}
-    if(pressed && !longPressHandled && nowUs-buttonStartedUs>=3000000){
-        longPressHandled=true;setupRequested=true;Serial.println("SETUP_REQUESTED");
+    const int64_t nowUs=esp_timer_get_time();
+    const uint8_t action=prg.update(nowUs,digitalRead(BUTTON)==LOW);
+    bool buttonSwitched=false,timerFinished=false;
+    if(action&PrgGesture::OpenSetup){
+        if(countdown.running){countdown.stop();timerFinished=true;Serial.println("COUNTDOWN_CANCEL setup=1");}
+        setupRequested=true;Serial.println("SETUP_REQUESTED");
     }
-    if(!pressed && buttonDown){
-        buttonDown=false;
-        if(!longPressHandled && nowUs-buttonStartedUs>=30000){
-            weatherPage=!weatherPage;buttonSwitched=true;
-            Serial.printf("BUTTON_PAGE name=%s\n",weatherPage?"weather":"clock");
-        }
+    if(!setupRequested && !countdown.running && (action&PrgGesture::StartTimer)){
+        countdown.start(nowUs);nextTimerFrameUs=nowUs;
+        lastTimerPhase=TimerPhase::Normal;lastCountdownSecond=-1;
+        timerFrames=timerFailures=0;prg.clearClicks();
+        Serial.printf("COUNTDOWN_START monotonic_us=%lld duration_us=30000000 return_page=%s\n",
+            (long long)nowUs,weatherPage?"weather":"clock");
+    }else if(!setupRequested && !countdown.running && (action&PrgGesture::TogglePage)){
+        weatherPage=!weatherPage;buttonSwitched=true;
+        Serial.printf("BUTTON_PAGE name=%s\n",weatherPage?"weather":"clock");
     }
     bool busy;uint32_t generation;
     WeatherCache data=cacheSnapshot(&busy,&generation);
     if(!busy && getCpuFrequencyMhz()!=80){setCpuFrequencyMhz(80);Serial.println("CPU_IDLE mhz=80");}
     if(setupRequested && !busy){provision();return;}
-    if(!busy && !setupRequested && time(nullptr)>=data.nextNetwork){requestNetwork();data=cacheSnapshot(&busy,&generation);}
-    bool redraw=buttonSwitched;
+
+    if(countdown.running){
+        const TimerView view=countdown.view(nowUs);
+        if(view.phase==TimerPhase::Normal){
+            countdown.stop();prg.clearClicks();timerFinished=true;
+            Serial.printf("COUNTDOWN_DONE elapsed_us=%lld frames=%u errors=%u return_page=%s\n",
+                (long long)(nowUs-countdown.startedAt),timerFrames,timerFailures,
+                weatherPage?"weather":"clock");
+        }else{
+            if(nowUs>=nextTimerFrameUs){
+                if(view.phase!=lastTimerPhase){
+                    const char *phase=view.phase==TimerPhase::Counting?"counting":
+                                      view.phase==TimerPhase::Zero?"zero":"fireworks";
+                    Serial.printf("COUNTDOWN_PHASE name=%s elapsed_us=%lld\n",
+                        phase,(long long)(nowUs-countdown.startedAt));
+                    lastTimerPhase=view.phase;
+                }
+                const int second=(view.hundredths+99)/100;
+                if(view.phase==TimerPhase::Counting && second!=lastCountdownSecond){
+                    Serial.printf("COUNTDOWN_TICK remaining_cs=%d elapsed_us=%lld\n",
+                        view.hundredths,(long long)(nowUs-countdown.startedAt));
+                    lastCountdownSecond=second;
+                }
+                if(!oledReady)oledReady=startOled(false);
+                renderCountdown(frame,view);oledReady=flushOled(false);
+                ++timerFrames;if(!oledReady)++timerFailures;
+                nextTimerFrameUs+=Countdown::FrameUs;
+                if(nextTimerFrameUs<=nowUs)nextTimerFrameUs=nowUs+Countdown::FrameUs;
+            }
+            // Leave the selected normal page intact. Existing network work can
+            // finish, but new requests and battery ADC work wait until the effect ends.
+            delay(1);return;
+        }
+    }
+    if(!busy && !setupRequested && time(nullptr)>=data.nextNetwork){
+        requestNetwork();data=cacheSnapshot(&busy,&generation);
+    }
+    bool redraw=buttonSwitched||timerFinished;
     if(generation!=seenGeneration){seenGeneration=generation;dumpPages=3;redraw=true;}
     time_t minute=time(nullptr)/60;
     if(minute!=shownMinute){shownMinute=minute;redraw=true;}
     if(redraw)showPage(data,busy,buttonSwitched);
-    // Background updates redraw the selected page without changing it.
-    nowUs=esp_timer_get_time();
-    if(batteryEnable>=0 && !busy && !buttonDown && nowUs>=nextBatteryUs){
+    if(batteryEnable>=0 && !busy && !prg.down && !prg.clicks && esp_timer_get_time()>=nextBatteryUs){
         const int previous=batteryLevel;readBattery();
         if(previous!=batteryLevel)showPage(data,busy,false);
     }
-    if(busy || buttonDown || setupRequested){delay(10);return;}
-    // Wake for clock/date updates or battery sampling; PRG can wake us earlier.
+    if(busy || prg.down || setupRequested){delay(5);return;}
     timeval tv;gettimeofday(&tv,nullptr);
     const int64_t toMinute=(60-tv.tv_sec%60)*1000000LL-tv.tv_usec;
-    const int64_t deadline=nextIdleWakeUs(esp_timer_get_time(),toMinute,
-                                           batteryEnable>=0?nextBatteryUs:0);
+    int64_t deadline=nextIdleWakeUs(esp_timer_get_time(),toMinute,
+                                   batteryEnable>=0?nextBatteryUs:0);
+    // Waiting for a second/third click must not sleep until the next minute.
+    if(prg.clicks && prg.settleAt<deadline)deadline=prg.settleAt;
     sleepUntil(deadline);
 }

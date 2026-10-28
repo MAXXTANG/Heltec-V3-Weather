@@ -1,13 +1,13 @@
 {
-  "version": "1.2.1",
+  "version": "1.2.2",
   "board": "Heltec WiFi LoRa 32 V3",
   "source_license": "MIT with OFL font exception",
-  "native_tests": "passed with ASan/UBSan; manual-page runtime contract and minute/battery wake scheduling passed",
+  "native_tests": "passed with ASan/UBSan; gestures, monotonic countdown boundaries, blink rates, 3001 numeral layouts, 100 fireworks frames, manual pages and scheduling",
   "esp32s3_build": "passed",
-  "app_bytes": 955376,
-  "app_sha256": "50f9e0a7b51dd435b45e1791b603413f2bc61737d81425ef243ab49ceed99593",
+  "app_bytes": 957984,
+  "app_sha256": "a06d7fc854b55bd16208e21397a365ce9a47cd514466b1c2fe26be8285aaf9e4",
   "binary_distribution": "source only; compiled artifact not committed",
-  "hardware_test": "matching manual-page control verified on private-font v1.1.7: 90-second capture and two GPIO0 input pulses passed; public v1.2.1 compiled/native-tested only",
+  "hardware_test": "not flashed; user requested firmware preparation only",
   "oled_contrast": {
     "day": 2,
     "night": 0,
@@ -16,6 +16,19 @@
     "timezone": "configured device timezone",
     "startup": 2
   },
-  "page_mode": "manual PRG short press only",
-  "startup_page": "clock"
+  "page_mode": "manual PRG single press; triple press starts countdown",
+  "startup_page": "clock",
+  "countdown": {
+    "trigger": "three short PRG presses, gap < 400 ms",
+    "duration_us": 30000000,
+    "display": "SS:hundredths",
+    "frame_interval_us": 40000,
+    "blink_last_15s_hz": 1,
+    "blink_last_5s_hz": 4,
+    "zero_hold_us": 200000,
+    "fireworks_us": 4000000,
+    "return": "previously selected clock/weather page",
+    "clock": "esp_timer monotonic microseconds",
+    "single_click_delay_us": 400000
+  }
 }
