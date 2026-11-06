@@ -1,0 +1,33 @@
+{
+  "firmware": "1.4.1-usb-demo",
+  "usb_new_case_simulation": {
+    "firmware": "1.4.1-usb-demo",
+    "simulation_command_sent_once": true,
+    "simulated_new_case_detected": true,
+    "hardware_notification_started": true,
+    "steady_after_blink": true,
+    "blink_elapsed_us": 3000511,
+    "boot_acknowledged_without_synthetic_press": true,
+    "returned_to_clock": true,
+    "simulation_cleared": true,
+    "official_case_cache_untouched": true,
+    "official_new_incident_test": false,
+    "optical_flash_timing_measured": false
+  },
+  "live_disaster_verified_this_boot": true,
+  "weather_verified_this_boot": true,
+  "current_page": "clock",
+  "previous_full_functional_test": {
+    "firmware": "1.4.0-alerts",
+    "live_disaster_verified": true,
+    "live_case_count": 2,
+    "weather_ntp_verified": true,
+    "manual_case_paging_verified": true,
+    "no_automatic_case_advance_seconds": 27,
+    "countdown_verified": true,
+    "live_refreshes": 2,
+    "new_case_alert_native_simulation_verified": true,
+    "new_case_alert_live_event_verified": false,
+    "button_test": "USB DTR/GPIO0 simulation; mechanical and optical tests not performed"
+  }
+}

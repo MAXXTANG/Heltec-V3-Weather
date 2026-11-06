@@ -3,7 +3,7 @@
 
 // All intervals use the monotonic microsecond clock, never NTP/wall time.
 struct PrgGesture {
-    enum Action : uint8_t { None=0, TogglePage=1, StartTimer=2, OpenSetup=4 };
+    enum Action : uint8_t { None=0, TogglePage=1, StartTimer=2, OpenSetup=4, AdvanceTwo=8 };
     static constexpr int64_t DebounceUs=30000;
     static constexpr int64_t ClickGapUs=400000;
     static constexpr int64_t LongPressUs=3000000;
@@ -13,9 +13,8 @@ struct PrgGesture {
 
     void clearClicks(){clicks=0;settleAt=0;}
     uint8_t settle(){
-        // Two ordinary clicks return to the original page. Delay presentation
-        // until the sequence is known so a triple click never flashes pages.
-        const uint8_t action=(clicks&1)?TogglePage:None;
+        // Preserve two deliberate advances; triple click remains the timer.
+        const uint8_t action=clicks==2?AdvanceTwo:clicks==1?TogglePage:None;
         clearClicks();return action;
     }
     uint8_t update(int64_t now,bool pressed){

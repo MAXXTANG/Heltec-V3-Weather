@@ -1,0 +1,13 @@
+{
+  "version": "1.4.1-usb-demo",
+  "target": "Heltec WiFi LoRa 32 V3 / ESP32-S3 / 8 MB",
+  "app_file": "release/heltec-v3-disaster-v1.4.1-usb-demo-app.bin",
+  "app_bytes": 1671712,
+  "app_sha256": "b6e895e5288c347336c390794220683609289cb27b4c2c2df2564ac8e3930d0c",
+  "build_flash_used_bytes": 1671245,
+  "partition_app_capacity_bytes": 3342336,
+  "native_tests": "ASan/UBSan passed: parser, stable case IDs, baseline/dedup, manual case paging, 3-second flash and hold/ack, typography, clock/weather, countdown",
+  "hardware_validation": "installed/hash verified; 64KiB boot/config prefix unchanged; actual OLED simulated-new-case notification, 3.000511s software blink interval, held page, user BOOT acknowledgement, return to clock and test-data cleanup all verified; official new-event and optical timing not measured",
+  "source_url": "https://nfa119.e-land.gov.tw/DTS/caselist/html",
+  "polling": "60 seconds after completion, subject to network and countdown delays"
+}

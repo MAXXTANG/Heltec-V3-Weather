@@ -42,8 +42,8 @@ static void checkPages(const ClockView &view) {
     }
     // Header groups keep visible space even with the longer weekday/date strings.
     ClockFrame place,date,battery;
-    clockText(place,23,1,"JIAOXI",ui_font11,0,1);
-    clockText(date,126,1,view.date,ui_font11,2,1);
+    clockText(place,23,1,"JIAOXI",readable_font11);
+    clockText(date,126,1,view.date,readable_font11,2);
     clockBattery(battery,view.batteryLevel);
     for(int y=0;y<11;++y)for(int x=0;x<128;++x){
         assert(!(place.ink(x,y)&&date.ink(x,y)));

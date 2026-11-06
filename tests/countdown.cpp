@@ -40,7 +40,7 @@ static void gestures(){
     PrgGesture doubleClick;
     assert(tap(doubleClick,0)==PrgGesture::None);
     assert(tap(doubleClick,200000)==PrgGesture::None);
-    assert(doubleClick.update(700000,false)==PrgGesture::None);
+    assert(doubleClick.update(700000,false)==PrgGesture::AdvanceTwo);
     assert(doubleClick.clicks==0);
 
     PrgGesture boundary;

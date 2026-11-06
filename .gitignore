@@ -20,3 +20,4 @@ secrets.h
 *flash-backup*
 *nvs*.bin
 device.json
+backups/

@@ -56,3 +56,8 @@ and comply with their source/relinking requirements where applicable.
   No code or icon assets from that project are included here.
 - Heltec and other product names identify the compatible hardware; this is an
   independent community project, not an official Heltec product.
+# Added display fonts
+
+The disaster screen includes raster glyphs derived from Noto Sans CJK TC Regular, distributed under SIL OFL 1.1. The source font and license are in `third_party/fonts/NotoSansCJKtc-Regular.otf` and `third_party/fonts/Noto-CJK-OFL.txt`. Source: https://github.com/notofonts/noto-cjk.
+
+Readable ASCII screens include glyphs derived from Cousine Bold, distributed under SIL OFL 1.1. The source font and license are in `third_party/fonts/Cousine-Bold.ttf` and `third_party/fonts/Cousine-OFL.txt`. Source: https://github.com/google/fonts/tree/main/ofl/cousine. The generated bitmap zero adds a diagonal slash.

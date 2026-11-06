@@ -1,154 +1,78 @@
-# Heltec V3 Weather
+# Heltec V3：時鐘、礁溪天氣與宜蘭災情
 
-![Heltec V3 Weather project cover](docs/images/cover.png)
+以 Heltec-V3-Weather v1.2.4 原始碼為基礎，新增宜蘭消防局災情頁。本分支為 **`宜蘭災情版`／v1.4.1-usb-demo**；原本的 `main` 與既有版本保持不變。此 repo 提供可編輯程式、完整字庫、測試、預覽與驗證摘要，不提交韌體二進位或裝置設定備份。
 
-A Wi-Fi weather clock for **Heltec WiFi LoRa 32 V3**, with a 128 × 64 OLED,
-seven-segment numerals, weather icons, humidity and a battery indicator.
+[目前狀態](STATUS.md) · [實機驗證](docs/VALIDATION.md) · [MIT 授權](LICENSE) · [第三方標示](THIRD_PARTY_NOTICES.md) · [原版 main](https://github.com/MAXXTANG/Heltec-V3-Weather/tree/main)
 
-把 Heltec V3 變成小型氣象時鐘：短按 PRG 手動切換時間與天氣頁，畫面持續停留在所選頁面。
-不需要室外感測器，透過 Wi-Fi 取得網路天氣。預設示範地點為台灣礁溪，時區 UTC+8。
+## 操作
 
-[MIT license](LICENSE) · [Weather icons](docs/WEATHER-ICONS.md) · [Privacy review](docs/PRIVACY.md) · [Third-party notices](THIRD_PARTY_NOTICES.md)
+- 一般瀏覽短按 PRG／BOOT：時鐘 → 天氣 → 災情第 1 件 → 第 2 件 → … → 最後一件 → 時鐘。連按兩下會前進兩步；三連按仍啟動倒數。
+- 連按三下：30 秒倒數，最後 10 秒以 4 Hz 閃爍，結束播放煙火後返回原頁。
+- 長按約 3 秒：Wi-Fi 配網，沿用原本 `v3-clock` 設定空間。
+- 災情頁每 4 秒顯示下一段長文字，並交替顯示案別與派遣分隊。案件本身不再自動輪播，按 BOOT 才看下一件；重新進入從最新案件開始。
+- 新案通知：第一輪成功查詢只建立基準；之後發現新案會切換到該案，以每秒 2 次的反白／正常交替閃爍 3 秒，再正常顯示並持續停留。只有手動短按 BOOT 才確認通知並返回時鐘；三連按在通知停留狀態也會確認返回時鐘，不啟動倒數。可提前按 BOOT 結束提醒。
+- 查詢結果若在倒數期間收到新案，會停止倒數並優先顯示通知。倒數期間尚未啟動的網路查詢仍延後到倒數結束。
 
-封面為 AI 輔助製作的專案插圖，下面兩張為實機照片。
+## 資料與更新
 
-## 實機照片 / Real device
+資料來源：[宜蘭縣消防局即時災情](https://nfa119.e-land.gov.tw/DTS/caselist/html)。V3 透過 2.4 GHz Wi-Fi 直接以 HTTPS 讀取官方 HTML，不需要中繼電腦、API 金鑰或雲端服務。
 
-| 天氣頁 / Weather | 時間頁 / Clock |
-| --- | --- |
-| ![Real Heltec V3 weather screen](docs/images/weather-in-use.jpg) | ![Real Heltec V3 clock screen](docs/images/clock-in-use.jpg) |
+災情每輪讀取完成後約 60 秒再次查詢；連線、NTP、天氣請求與倒數期間可能使間隔延長，這是輪詢，並非官方推播。天氣仍約每 15 分鐘更新，失敗約 5 分鐘後重試。NTP 約每 15 分鐘校時。
 
-照片由專案擁有者提供，已移除 EXIF／GPS 中繼資料；拍攝的是加入電池圖示前的版本。
-Weather data by [Open-Meteo](https://open-meteo.com/), [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+災情欄位包含受理日期時間、案類、案別、地點、派遣分隊及執行狀況。畫面省略地點開頭的「宜蘭縣」，其餘文字按完整字元分段，保留最多 8 件最新紀錄。網站目前的舊案件與已返隊案件會照實顯示，案件日期時間不等於讀取時間；不推定仍在救援。
 
-## 公開版介面 / Interface
+最下行的「取HH:MM」是最後成功取得資料的本地時間。「失敗舊」代表最近一次讀取失敗，仍顯示上次成功資料；超過 3 分鐘未成功取得則標記「過期舊」。剛開機尚未成功取得時顯示「尚無可用資料」。只有官方表格欄位完整、但確實沒有資料列時才顯示「網站目前無案件」。快取保存在 RAM，重開機後重新讀取。
 
-![Clock and weather page examples](docs/images/ui-carousel.gif)
+HTTPS 驗證 TWCA Global Root CA 與主機名稱；不使用 `setInsecure()`。回應上限 64 KiB，檢查 HTTP 傳輸完整性、表格欄名、日期及各欄長度；網站改版或異常回應會保留舊資料並標記失敗。HTML 註解內的示範案件會被排除。
 
-動畫依序展示兩頁；實機以按鈕切換，不會自動輪播。這是同一份韌體繪圖程式產生的示範資料，不是即時氣象或照片。公開版使用可再散布的
-Barlow Condensed 字型；大數字、日期數字與濕度數字由程式繪製七段式字形。
+## 中文與字型
 
-- 頂列固定：電池圖示 → `JIAOXI` → 英文星期／日期。
-- 時間頁：滿版七段式 `HH:MM`。
-- 天氣頁：左側置中圖示與濕度，右側大溫度及 `°`。
-- 11 種原生天氣圖示，依天氣代碼與日夜狀態切換，不在天氣頁顯示英文天氣名稱。
-- 開機顯示時間頁；每分鐘更新時間，每 15 分鐘更新天氣並 NTP 校時，背景更新維持所選頁面。
-- 更新失敗保留舊資料，約 5 分鐘後重試；資料過期時出現 `!`。
+2026-11-06 可讀性更新（v1.3.1）：配網與英文提示改用 Cousine Bold 等寬粗體；Wi-Fi 名稱獨立使用 13 px，密碼放大至 18 px，並明確區分標籤與實際密碼。數字 0 加上斜線，避免和字母 O 混淆。日期／地名的英文頁首也使用新字體，七段式時間與倒數維持原樣。字型原檔、產生工具及 SIL OFL 授權皆附在本專案。
 
-## PRG 與配網 / Controls
+![配網字體比較，使用示意帳號密碼](docs/setup-font-comparison.png)
 
-| 操作 | 功能 |
-| --- | --- |
-| 短按 PRG／BOOT 一下 | 放開後等待約 0.4 秒辨識連按，再切換時間／天氣頁 |
-| 連按 PRG／BOOT 三下 | 啟動 30 秒倒數，每下間隔須小於 0.4 秒 |
-| 長按 PRG／BOOT 約 3 秒 | 取消正在執行的倒數並開啟 Wi-Fi 配網；若正在下載，等該次下載結束後開啟 |
-| RESET | 重新開機，保留已存 Wi-Fi 設定 |
+內建 Noto Sans CJK TC Regular 的 12 px 單色點陣，包含 ASCII、CJK 基本漢字、擴展 A 與常用標點，共 27,983 個字形；未涵蓋的罕用字顯示 `?`。字型授權見 `third_party/fonts/Noto-CJK-OFL.txt`。字庫已包含在 `src/disaster_font.h`，一般編譯無需下載字型。
 
-首次開機會顯示裝置的配網 Wi-Fi 名稱和密碼。手機連上該 Wi-Fi 後，開啟
-`http://192.168.4.1`，輸入家中 **2.4 GHz** Wi-Fi。配網頁面閒置 10 分鐘會關閉並休眠。
-Wi-Fi 名稱與密碼只在裝置 NVS 中保存，原始碼沒有預填任何使用者的 Wi-Fi 資料。
+重新產生字庫：先取得 Noto 官方的 `Sans/OTF/TraditionalChinese/NotoSansCJKtc-Regular.otf`，再執行 `python3 tools/generate_disaster_font.py /absolute/path/to/font.otf`。
 
-## 30 秒倒數 / Countdown
+## 編譯與驗證
 
-三連按後，畫面僅顯示滿版七段式 `30:00 → 00:00`。格式為 **秒：百分之一秒**，
-計時使用單調遞增的微秒時鐘，OLED 更新目標為 25 fps，末兩位依當下剩餘時間顯示。
-NTP 校時與偶爾延遲的畫格不會延長倒數。地點、日期、電池及天氣在倒數期間隱藏。
-
-- 剩餘時間超過 10 秒（包含 15～10 秒區段）持續顯示；最後 10 秒以約 4 Hz 閃爍（亮 125 ms／暗 125 ms，每秒四次完整亮滅）。
-- 結束顯示 `00:00` 約 0.2 秒，接著播放 **4 秒煙火動畫**。
-- 動畫結束回到啟動前的時間或天氣頁，恢復手動切頁與省電待機。
-- 倒數與煙火期間的短按不會換頁或重新計時；長按 3 秒仍可進入配網。
-- 為避免三連按時畫面跳動，普通點擊會等 0.4 秒確認；連按兩下的結果是保留原頁。
-
-![Countdown stages](docs/images/countdown-preview.png)
-
-[完整即時速度預覽](docs/images/countdown-demo.gif) · [4 秒煙火預覽](docs/images/fireworks-demo.gif)
-
-預覽由韌體同一套繪圖程式產生；最後的時間頁為固定示範資料。v1.2.4 取消 15～10 秒的慢速閃爍，僅保留最後 10 秒每秒四次閃爍，編譯及原生測試通過。相同倒數與控制邏輯於 2026-10-29 以原字型版 v1.1.10 完成實機驗證：30 秒倒數、4 秒煙火、855 格／25 fps、返回原頁、單按切頁、Wi-Fi 與省電待機均正常。按鍵透過 USB DTR 模擬；未以相機量測閃爍，也未刷入公開版字型的韌體，詳見 [驗證記錄](docs/BUILD-VALIDATION.json)。
-動畫期間主控保持運作，新的網路請求與電池量測延後至動畫結束，已開始的下載可繼續完成。
-
-## 電池與省電 / Battery and power
-
-使用已接妥的 3.7 V 單節鋰電池。電量圖示依電壓粗估為四格，每分鐘更新；
-約 3.45 V 以下顯示 `!` 提醒充電，無有效讀值顯示 `?`。
-這不是精密電量百分比；充電、負載與電池型號都會影響讀值。
-只有 USB、沒有電池時，無法可靠判斷電池是否存在。
-依 [Heltec V3.2 官方電路圖](https://resource.heltec.cn/download/WiFi_LoRa_32_V3/WiFi_LoRa_32_V3.2_Schematic_Diagram.pdf)，CHRG 訊號只接到充電指示燈，未接至 ESP32。原板無法由韌體可靠判斷是否正在充電，因此目前不顯示閃電符號，也不以高電壓推定正在充電；自動充電圖示需要另加狀態偵測硬體。
-
-韌體會辨識 V3／V3.1 與 V3.2 的電池量測控制方向。Wi-Fi 關閉後使用
-light sleep，等按鍵、整分鐘或電池量測時間喚醒；OLED 持續顯示。LoRa 不參與天氣接收，開機後設為休眠。
-一般活動頻率為 80 MHz，網路工作時暫用 240 MHz。OLED 對比值白天為 2，夜間 22:00～07:00 降為 0（依裝置設定時區；控制值範圍為 0～255，0 是最低對比設定）。開機及時間同步前使用 2。
-尚未提供平均電流或電池續航的實測保證。
-
-## 編譯與刷入 / Build and flash
-
-需求：Python 3.10+、可傳資料的 USB 線，以及 Heltec WiFi LoRa 32 V3。
-首次安裝建議先備份板上原有韌體；備份可能含 Wi-Fi 設定，應只保存在本機。
+需求：Python 3.10+，原生測試另需 `clang++` 或以 `CXX` 指定 C++ 編譯器。使用鎖定版本的 PlatformIO 與函式庫：
 
 ```sh
-git clone https://github.com/MAXXTANG/Heltec-V3-Weather.git
+git clone --branch '宜蘭災情版' https://github.com/MAXXTANG/Heltec-V3-Weather.git
 cd Heltec-V3-Weather
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
 python tools/build.py
-python tools/build.py -t upload
-```
-
-Windows 可用 `.venv\Scripts\activate` 啟用虛擬環境。若接了多個序列裝置，
-加上 `--upload-port` 指定目標；這份韌體適用 V3，不能刷到 Wireless Paper。
-
-建置結果位於 `.pio/build/heltec-v3/`。這個公開 repo 提供原始碼，不包含任何原機 Flash／NVS
-備份或舊版韌體二進位。公開版 v1.2.4 的編譯與驗證記錄見 [BUILD-VALIDATION.json](docs/BUILD-VALIDATION.json)。
-
-## 修改地點 / Location
-
-編輯 [`src/weather_config.h`](src/weather_config.h)：
-
-- `WEATHER_LOCATION`：頂列地點名稱；小螢幕建議維持短名稱，修改後檢查預覽。
-- `WEATHER_LATITUDE`、`WEATHER_LONGITUDE`：查詢座標。
-- `WEATHER_TIMEZONE`：POSIX 時區，例如 `CST-8` 是 UTC+8。
-
-預設座標是公開的礁溪鎮中心示範點，不是從照片 GPS 或裝置定位取得。
-時間來自 NTP；溫度、濕度是氣象模式資料，不是室內感測值。
-
-## 圖示與測試 / Icons and tests
-
-![All eleven weather icon examples](docs/images/weather-icons.png)
-
-圖示標籤僅供文件說明；裝置使用原生 44 × 38 px 圖形。完整代碼對照見
-[天氣圖示說明](docs/WEATHER-ICONS.md)。
-
-```sh
-python tools/generate_fonts.py
-python tools/generate_weather_icons.py
 sh tests/run.sh
 ```
 
-原生測試需要 `clang++`（也可設定 `CXX=g++`），使用 ASan／UBSan，涵蓋全天時間、
-天氣與溫濕度邊界、頂列及圖示對齊、電池量測方向／電壓門檻、排程邊界、三連按／長按／彈跳、
-30 秒與閃爍門檻、3,001 組倒數數字排版及 100 格煙火畫面。
-產生的畫面在 `docs/images/`；七段式時鐘主體與先前已驗證版本逐像素比對。
+Windows 使用 `.venv\Scripts\activate` 啟用虛擬環境。`tools/build.py` 首次建置需下載工具鏈，之後使用專案的 PlatformIO 快取。板型是 `heltec_wifi_lora_32_V3`，ESP32-S3、8 MB Flash、原 `default_8MB.csv` 分割表；應用程式輸出為 `.pio/build/heltec-v3/firmware.bin`。測試使用 ASan／UBSan 驗證資料解析、OLED 畫面、倒數、電池與頁面紀錄，並產生畫面預覽。
 
-## 接腳 / Pins
+![災情頁預覽](docs/disaster-preview.png)
 
-| 功能 | GPIO |
-| --- | --- |
-| OLED SDA / SCL / RESET | 17 / 18 / 21 |
-| Vext | 36，低電位開啟 |
-| PRG／BOOT / LED | 0 / 35 |
-| 電池 ADC / 控制 | 1 / 37 |
-| SX1262 CS / SCK / MOSI / MISO | 8 / 9 / 10 / 11 |
-| SX1262 RESET / BUSY | 12 / 13 |
+備份與實機結果另記錄於 `docs/VALIDATION.md`。`backups/` 可能包含原裝置的網路設定，僅供本機復原，已列入忽略清單。
 
-參考 [Heltec 官方 V3 資源](https://resource.heltec.cn/download/WiFi_LoRa_32_V3/)。
+已實測的本機 v1.4.1 應用程式為 1,671,712 bytes，SHA-256 與建置資料見 [build-info.json](docs/build-info.json)。其中 `app_file` 是本機保存名稱，並非 repo 下載連結；重新編譯的雜湊可能因環境或建置路徑不同而改變。本機舊版及完整 Flash 備份仍保留，不隨此分支上傳。
 
-## 授權與資料來源 / Licensing
+本次只備份至 Git，沒有再次刷機。需更新裝置時，先核對板型與完整備份，再檢查分割表及實際啟動槽；不可直接把應用程式映像當成完整 Flash 映像。`tools/check_backup_layout.py` 可比對本機完整備份與本次建置的分割表、應用程式大小。
 
-原創程式、七段式繪圖、天氣圖示及本專案文件採 [MIT](LICENSE)。
-字型及字母／符號點陣保留 **SIL OFL 1.1**；下載的框架與函式庫依各自授權。
-詳細範圍見 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+## 新案辨識與驗證邊界（v1.4.0）
 
-Weather data by [Open-Meteo](https://open-meteo.com/), [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
-資料與 API 服務條款不因本專案 MIT 授權而改變；使用 API 時請遵守
-[Open-Meteo 的現行授權與使用條款](https://open-meteo.com/en/licence)。
+優先保留官方 HTML 每一資料列註解中的純數字案件編號；整段示範案件註解仍會排除。沒有官方編號時，使用受理時間與案類作為替代識別；此替代方法無法區分同秒同案類的不同案件。狀態與地址更正不會觸發新通知。
+
+開機後第一個成功回應為基準；每次開機重新建立。記憶最近 256 個案件識別，短暫移出再出現或網路重連不會重複提醒；早於開機基準最新案件的歷史補列不提醒。資料只保存在 RAM，不為每輪查詢寫入 Flash。單輪有多筆新案時顯示其中最新一筆，其他仍可在一般瀏覽逐筆查看。
+
+原生測試使用明確標記的模擬新案驗證閃爍 3 秒、停留及按鍵確認；動畫 `docs/new-case-alert-simulation.gif` 是模擬資料。實機測試結果以 `docs/device-status.json` 與 `docs/VALIDATION.md` 為準，不把模擬事件當作官方新案實測。
+
+## USB 單次模擬（v1.4.1）
+
+`python3 tools/demo_new_case.py` 會重啟 V3 開啟串口接收時段，僅送出一次 `SIMULATE_NEW_CASE` 指令。接受指令 8 秒後，以獨立的空白基準與模擬案件執行相同的新案偵測、3 秒閃爍及手動確認流程。畫面全程標示「模擬測試／非真實災情」，不寫入官方案件快取或官方去重紀錄，不保存至 Flash。
+
+程式不會代按 BOOT。使用者短按 BOOT 後，清掉模擬案件並返回時鐘；之後正常瀏覽仍使用官方資料。若等待逾時，裝置仍停留在通知，使用者稍後可以自行按鍵。新開機不會自動觸發模擬，必須明確收到 USB 指令。真實新案的優先權高於進行中的模擬。
+
+## 授權與來源
+
+程式與專案文件採 [MIT](LICENSE)；字型與其點陣保留 SIL OFL 1.1，詳見 [第三方標示](THIRD_PARTY_NOTICES.md)。Weather data by [Open-Meteo](https://open-meteo.com/), [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)。官方災情及天氣資料的權利與服務條款不因本專案授權而改變。

@@ -1,10 +1,12 @@
 # Heltec-V3-Weather — 跨 AI 交接
 
-> 最後更新：2026/11/04
+> 最後更新：2026/11/06
 
 正式進度來源：`STATUS.md`。交接是某一批工作的歷史快照，不能取代最新狀態；先確認 Git 分支、HEAD 與未提交變更，再讀相關紀錄。
 
 ## 紀錄索引
+
+- [2026-11-06 Codex：宜蘭災情版分支備份](2026-11-06-codex-yilan-disaster-backup.md)
 
 - [2026-11-04 Codex：建立共用知識庫入口](2026-11-04-codex-vault-bridge.md)
 

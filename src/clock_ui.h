@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cstring>
 #include "ui_fonts.h"
+#include "readable_fonts.h"
 #include "weather_config.h"
 #include "weather_icons.h"
 
@@ -133,9 +134,9 @@ inline void clockBattery(ClockFrame &f,int level) {
     }
 }
 inline void renderClockHeader(ClockFrame &f,const ClockView &v) {
-    clockText(f,23,1,WEATHER_LOCATION,ui_font11,0,1);
+    clockText(f,23,1,WEATHER_LOCATION,readable_font11);
     clockBattery(f,v.batteryLevel);
-    clockText(f,126,1,v.date,ui_font11,2,1);
+    clockText(f,126,1,v.date,readable_font11,2);
 }
 inline void clockHumidity(ClockFrame &f,const char *humidity) {
     // Center the visible numerals and percent sign together, including values

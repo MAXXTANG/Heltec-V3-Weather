@@ -11,6 +11,7 @@
 #include <time.h>
 #include <sys/time.h>
 #include <cmath>
+#include <memory>
 #include <esp_sleep.h>
 #include <esp_sntp.h>
 #include <esp_timer.h>
@@ -22,6 +23,10 @@
 #include "battery_status.h"
 #include "weather_ca.h"
 #include "weather_config.h"
+#include "disaster_ui.h"
+#include "disaster_ca.h"
+#include "setup_ui.h"
+#include "disaster_simulation.h"
 
 static constexpr uint32_t MAGIC=0x56334332;
 static constexpr int OLED_SDA=17,OLED_SCL=18,OLED_RESET=21,EXT_POWER=36,STATUS_LED=35,BUTTON=0;
@@ -45,7 +50,49 @@ portMUX_TYPE weatherMux=portMUX_INITIALIZER_UNLOCKED;
 TaskHandle_t networkTask=nullptr;
 bool networkBusy=false;
 uint32_t networkGeneration=0;
-bool weatherPage=false,setupRequested=false;
+DisasterNavigation navigation;
+Page &selectedPage=navigation.page;
+DisasterTracker disasterTracker;
+DisasterSimulation simulation;
+bool pendingDisasterAlert=false;
+uint64_t pendingDisasterKey=0;
+size_t pendingDisasterIndex=0,pendingDisasterCount=0;
+int shownAlertPhase=-1;
+bool setupRequested=false;
+DisasterList disasterCache;
+bool disasterValid=false,disasterFailed=false;
+int64_t disasterFetchedUs=-1,nextWeatherUs=0,nextNtpUs=0;
+time_t disasterFetchedAt=0;
+size_t &disasterIndex=navigation.index;
+unsigned disasterStep=0;
+int64_t nextDisasterFrameUs=0;
+const char *pageName(){return selectedPage==Page::Clock?"clock":selectedPage==Page::Weather?"weather":"disaster";}
+DisasterView disasterSnapshot(bool busy){
+    DisasterView view;
+    if(simulation.active){
+        view.item=simulation.item;view.count=view.total=1;view.valid=true;view.simulated=true;
+        view.step=disasterStep;std::memcpy(view.checked,simulation.item.received+11,5);view.checked[5]=0;
+        return view;
+    }
+    portENTER_CRITICAL(&weatherMux);
+    view.count=disasterCache.count;view.total=disasterCache.total;
+    view.valid=disasterValid;view.failed=disasterFailed;
+    const int64_t fetchedUs=disasterFetchedUs;const time_t fetchedAt=disasterFetchedAt;
+    navigation.reconcile(disasterCache);
+    view.index=disasterIndex;
+    if(view.count)view.item=disasterCache.cases[view.index];
+    portEXIT_CRITICAL(&weatherMux);
+    view.stale=fetchedUs<0||esp_timer_get_time()-fetchedUs>180000000;
+    view.busy=busy;view.step=disasterStep;
+    if(view.valid){tm local={};localtime_r(&fetchedAt,&local);strftime(view.checked,sizeof(view.checked),"%H:%M",&local);}
+    return view;
+}
+unsigned disasterDisplaySteps(const DisasterView &v){
+    unsigned steps=6;
+    for(unsigned n:{disasterSlices(v.item.location),disasterSlices(v.item.detail)*2,disasterSlices(v.item.units)*2,
+                    disasterSlices(v.item.status),disasterSlices(v.item.category)})if(n>steps)steps=n;
+    return steps;
+}
 PrgGesture prg;
 Countdown countdown;
 int64_t nextTimerFrameUs=0;
@@ -54,7 +101,7 @@ int lastCountdownSecond=-1;
 uint32_t timerFrames=0,timerFailures=0;
 time_t shownMinute=-1;
 uint32_t seenGeneration=0;
-uint8_t dumpPages=3;
+uint8_t dumpPages=7;
 int batteryEnable=-1,batteryMv=0,batteryLevel=-1;
 int64_t nextBatteryUs=0;
 
@@ -150,8 +197,8 @@ void dumpFrame(){
     line[pos++]='\n';line[pos]=0;Serial.write((const uint8_t *)line,pos);
 }
 void message(const char *a,const char *b="",const char *c="",const char *d=""){
-    frame={};clockText(frame,64,3,a,ui_font12,1);clockText(frame,64,22,b,ui_font10,1);
-    clockText(frame,64,37,c,ui_font10,1);clockText(frame,64,52,d,ui_font10,1);flushOled();
+    frame={};clockText(frame,64,3,a,readableMessageFont(a),1);clockText(frame,64,22,b,readableMessageFont(b),1);
+    clockText(frame,64,37,c,readableMessageFont(c),1);clockText(frame,64,52,d,readableMessageFont(d),1);flushOled();
 }
 void sleepRadio(){
     pinMode(RADIO_BUSY,INPUT);
@@ -205,7 +252,7 @@ void provision(){
     if(!WiFi.softAP(ap.c_str(),password.c_str())){message("Wi-Fi setup failed","Press RESET to retry");stopWifi();deepSleep(true);}
     DNSServer dns;dns.start(53,"*",WiFi.softAPIP());WebServer server(80);
     bool restart=false;
-    const char *html=R"HTML(<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Heltec V3 Clock</title><style>body{font:18px system-ui;max-width:480px;margin:30px auto;padding:16px;background:#f3f4f5}input,button{box-sizing:border-box;width:100%;padding:14px;margin:8px 0}button{background:#152535;color:white;border:0;border-radius:8px}</style><h1>Heltec V3 時鐘</h1><p>網路氣象 · 七段式時鐘</p><form method="post" action="/save"><label>家中 2.4 GHz Wi-Fi 名稱<input name="ssid" maxlength="32" required autocomplete="off"></label><label>Wi-Fi 密碼<input name="password" type="password" maxlength="63" autocomplete="new-password"></label><button>儲存並連線</button></form><p>短按 PRG／BOOT 切換頁面，連按三下啟動 30 秒倒數；每 15 分鐘更新天氣。長按 PRG／BOOT 3 秒可重新配網。</p><p>Weather data by <a href="https://open-meteo.com/">Open-Meteo.com</a> · <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a></p></html>)HTML";
+    const char *html=R"HTML(<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Heltec V3 Clock</title><style>body{font:18px system-ui;max-width:480px;margin:30px auto;padding:16px;background:#f3f4f5}input,button{box-sizing:border-box;width:100%;padding:14px;margin:8px 0}button{background:#152535;color:white;border:0;border-radius:8px}</style><h1>Heltec V3 時鐘</h1><p>網路氣象 · 七段式時鐘 · 宜蘭災情</p><form method="post" action="/save"><label>家中 2.4 GHz Wi-Fi 名稱<input name="ssid" maxlength="32" required autocomplete="off"></label><label>Wi-Fi 密碼<input name="password" type="password" maxlength="63" autocomplete="new-password"></label><button>儲存並連線</button></form><p>短按 PRG／BOOT 依序切換時鐘／天氣／每筆災情，新案自動閃爍 3 秒並停留，短按返回時鐘；連按三下啟動 30 秒倒數；天氣每 15 分鐘、災情約每 60 秒更新。長按 PRG／BOOT 3 秒可重新配網。</p><p>Weather data by <a href="https://open-meteo.com/">Open-Meteo.com</a> · <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a></p></html>)HTML";
     server.on("/",HTTP_GET,[&](){server.send(200,"text/html; charset=utf-8",html);});
     server.on("/save",HTTP_POST,[&](){
         String ssid=server.arg("ssid"),pass=server.arg("password");
@@ -220,8 +267,7 @@ void provision(){
     });
     server.onNotFound([&](){server.sendHeader("Location","http://192.168.4.1/",true);server.send(302,"text/plain","");});
     server.begin();
-    String pw="PW "+password;
-    message("Wi-Fi setup",ap.c_str(),pw.c_str(),"192.168.4.1");
+    renderSetupPage(frame,ap.c_str(),password.c_str());flushOled();
     Serial.printf("SETUP_AP=%s PASSWORD=%s URL=http://192.168.4.1 timeout=600s\n",ap.c_str(),password.c_str());
     dumpFrame();uint32_t started=millis();
     while(millis()-started<600000){
@@ -262,6 +308,51 @@ bool updateWeather(){
     Serial.printf("WEATHER_OK temperature=%.1f humidity=%d code=%d observed=%lld\n",temp,rh,code,(long long)observed);
     return true;
 }
+class DisasterBody : public Stream {
+public:
+    std::string body;
+    explicit DisasterBody(size_t reserve){body.reserve(reserve);}
+    size_t write(uint8_t c) override{return write(&c,1);}
+    size_t write(const uint8_t *data,size_t size) override {
+        if(body.size()+size>DISASTER_BODY_LIMIT)return 0;
+        body.append(reinterpret_cast<const char *>(data),size);return size;
+    }
+    int available() override{return 0;}
+    int read() override{return -1;}
+    int peek() override{return -1;}
+    void flush() override{}
+};
+bool updateDisaster(){
+    WiFiClientSecure tls;tls.setCACert(DISASTER_CA);tls.setHandshakeTimeout(15);
+    HTTPClient http;http.setConnectTimeout(10000);http.setTimeout(10000);http.useHTTP10(true);
+    if(!http.begin(tls,"https://nfa119.e-land.gov.tw/DTS/caselist/html"))return false;
+    http.addHeader("Cache-Control","no-cache");
+    const int status=http.GET(),size=http.getSize();
+    if(status!=200||size>int(DISASTER_BODY_LIMIT)){
+        Serial.printf("DISASTER_HTTP_ERROR status=%d size=%d\n",status,size);http.end();return false;
+    }
+    DisasterBody sink(size>0?size:4096);
+    const int read=http.writeToStream(&sink);http.end();
+    if(read<0 || (size>=0 && read!=size)){
+        Serial.printf("DISASTER_BODY_ERROR read=%d expected=%d\n",read,size);return false;
+    }
+    std::unique_ptr<DisasterList> parsed(new DisasterList);
+    if(!parseDisasterHtml(std::move(sink.body),*parsed)){
+        Serial.println("DISASTER_PARSE_ERROR retained_previous=1");return false;
+    }
+    const DisasterChanges changes=disasterTracker.accept(*parsed);
+    const uint64_t newKey=changes.count?disasterKey(parsed->cases[changes.first]):0;
+    const time_t fetched=time(nullptr);const int64_t fetchedUs=esp_timer_get_time();
+    portENTER_CRITICAL(&weatherMux);
+    disasterCache=*parsed;disasterValid=true;disasterFailed=false;
+    disasterFetchedAt=fetched;disasterFetchedUs=fetchedUs;
+    if(changes.count){pendingDisasterAlert=true;pendingDisasterKey=newKey;pendingDisasterIndex=changes.first;pendingDisasterCount=changes.count;}
+    ++networkGeneration;
+    portEXIT_CRITICAL(&weatherMux);
+    Serial.printf("DISASTER_OK count=%u total=%u fetched=%lld bytes=%d new=%u\n",
+        unsigned(parsed->count),unsigned(parsed->total),(long long)fetched,read,unsigned(changes.count));
+    return true;
+}
 struct WifiSignalStats {
     int minimum=0,maximum=-127,total=0,count=0;
     uint32_t lastMs=0;
@@ -278,12 +369,13 @@ void networkUpdate(){
     WiFi.persistent(false);WiFi.mode(WIFI_STA);WiFi.setAutoReconnect(true);WiFi.setSleep(false);
     Serial.printf("WIFI_BEGIN status=%d\n",(int)WiFi.begin(savedSsid.c_str(),savedPass.c_str()));
     uint32_t start=millis();while(WiFi.status()!=WL_CONNECTED && millis()-start<25000)delay(50);
-    bool success=false;
+    bool success=false,disasterSuccess=false;
     if(WiFi.status()==WL_CONNECTED){
         Serial.println("WIFI_CONNECTED");
         const uint32_t connectedAt=millis(),connectMs=connectedAt-start;
         const int channel=WiFi.channel();WifiSignalStats signal;signal.sample(true);
         const uint32_t syncBudget=clockValid()?5000:15000;
+        if(!clockValid()||esp_timer_get_time()>=nextNtpUs){
         sntp_set_sync_status(SNTP_SYNC_STATUS_RESET);
         // Configure SNTP on the TCP/IP thread without touching the UI's timezone.
         esp_sntp_stop();esp_sntp_setoperatingmode(ESP_SNTP_OPMODE_POLL);
@@ -297,13 +389,19 @@ void networkUpdate(){
             delay(50);
         }
         Serial.println(synced?"NTP_SYNCED":clockValid()?"NTP_RTC_FALLBACK":"TIME_SYNC_FAILED");
+        nextNtpUs=esp_timer_get_time()+900000000;
+        }
         signal.sample(true);
         if(clockValid()){
+            disasterSuccess=updateDisaster();
+        }
+        if(clockValid() && esp_timer_get_time()>=nextWeatherUs){
             for(int attempt=1;attempt<=2 && !success;++attempt){
                 Serial.printf("WEATHER_ATTEMPT=%d\n",attempt);success=updateWeather();
                 signal.sample(true);
                 if(!success && attempt<2)delay(750);
             }
+            nextWeatherUs=esp_timer_get_time()+(success?900000000LL:300000000LL);
         }
         if(signal.count)Serial.printf("WIFI_SIGNAL samples=%d min_dbm=%d avg_dbm=%d max_dbm=%d channel=%d connect_ms=%u online_ms=%u weather_ok=%d\n",
             signal.count,signal.minimum,signal.total/signal.count,signal.maximum,channel,
@@ -316,8 +414,8 @@ void networkUpdate(){
         Serial.printf("WIFI_TARGET_VISIBLE=%d RSSI=%d CHANNEL=%d scan_count=%d\n",visible,rssi,channel,found);
         WiFi.scanDelete();
     }
-    const time_t next=nextNetworkMinute(time(nullptr),success);
-    portENTER_CRITICAL(&weatherMux);cached.nextNetwork=next;portEXIT_CRITICAL(&weatherMux);
+    const time_t next=time(nullptr)+60;
+    portENTER_CRITICAL(&weatherMux);cached.nextNetwork=next;disasterFailed=!disasterSuccess;portEXIT_CRITICAL(&weatherMux);
     Serial.printf("NEXT_NETWORK=%lld\n",(long long)next);
     esp_sntp_stop();
     uint32_t stopping=millis();while(esp_sntp_enabled() && millis()-stopping<1000)delay(10);
@@ -357,17 +455,24 @@ void showPage(const WeatherCache &data,bool busy,bool switched){
     view.batteryLevel=batteryLevel;
     view.stale=!data.valid || now-data.fetched>1800 || now-data.observed>3600;
     if(!oledReady)oledReady=startOled(false);
-    renderClockPage(frame,view,weatherPage);oledReady=flushOled();
+    if(selectedPage==Page::Disaster){
+        const DisasterView disaster=disasterSnapshot(busy);
+        renderDisasterNotification(frame,disaster,navigation,esp_timer_get_time());
+        Serial.printf("DISASTER_VIEW index=%u count=%u step=%u valid=%d failed=%d stale=%d held=%d blink=%d simulation=%d\n",
+            unsigned(disaster.index),unsigned(disaster.count),disaster.step,disaster.valid,disaster.failed,disaster.stale,
+            navigation.alertHeld,navigation.blinking(esp_timer_get_time()),disaster.simulated);
+    }else renderClockPage(frame,view,selectedPage==Page::Weather);
+    oledReady=flushOled();
     const int64_t pageShownUs=esp_timer_get_time();
     Serial.printf("PAGE name=%s switched=%d monotonic_ms=%lld time=%s weatherValid=%d stale=%d network=%d\n",
-        weatherPage?"weather":"clock",switched,(long long)(pageShownUs/1000),view.time,view.valid,view.stale,busy);
-    const uint8_t bit=weatherPage?2:1;
+        pageName(),switched,(long long)(pageShownUs/1000),view.time,view.valid,view.stale,busy);
+    const uint8_t bit=selectedPage==Page::Disaster?4:selectedPage==Page::Weather?2:1;
     if(dumpPages&bit){dumpFrame();dumpPages&=~bit;}
 }
 void sleepUntil(int64_t deadline){
     // Only the UI task requests network work, and it never does so while asleep.
     bool busy;cacheSnapshot(&busy);
-    if(busy || digitalRead(BUTTON)==LOW || WiFi.getMode()!=WIFI_OFF){delay(10);return;}
+    if(busy || Serial.available() || digitalRead(BUTTON)==LOW || WiFi.getMode()!=WIFI_OFF){delay(10);return;}
     esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL);
     esp_sleep_enable_ext0_wakeup((gpio_num_t)BUTTON,0);
     rtc_gpio_pullup_en((gpio_num_t)BUTTON);rtc_gpio_pulldown_dis((gpio_num_t)BUTTON);
@@ -392,7 +497,7 @@ void setup(){
     restoreOutputs();startBattery();oledReady=startOled(warm);
     if(!warm)sleepRadio();
     cached.magic=MAGIC;++cached.wakes;
-    Serial.printf("V3_CLOCK version=1.2.4 wake=%d retained=%d page_mode=manual cpuMHz=%u\n",
+    Serial.printf("V3_CLOCK version=1.4.1-usb-demo wake=%d retained=%d page_mode=manual cpuMHz=%u\n",
         (int)wake,warm,getCpuFrequencyMhz());
     WiFi.onEvent([](WiFiEvent_t event,WiFiEventInfo_t info){
         if(event==ARDUINO_EVENT_WIFI_STA_DISCONNECTED)
@@ -413,21 +518,67 @@ void setup(){
 }
 void loop(){
     const int64_t nowUs=esp_timer_get_time();
-    const uint8_t action=prg.update(nowUs,digitalRead(BUTTON)==LOW);
-    bool buttonSwitched=false,timerFinished=false;
+    while(Serial.available()){
+        if(simulation.input(char(Serial.read()),nowUs)){
+            if(navigation.alertHeld){simulation.clear();Serial.println("SIMULATION_REJECTED reason=real_alert_active");}
+            else Serial.println("SIMULATION_ARMED delay_ms=8000 source=local_usb");
+        }
+    }
+    uint8_t action=prg.update(nowUs,digitalRead(BUTTON)==LOW);
+    bool buttonSwitched=false,timerFinished=false,alertSwitched=false;
     if(action&PrgGesture::OpenSetup){
         if(countdown.running){countdown.stop();timerFinished=true;Serial.println("COUNTDOWN_CANCEL setup=1");}
-        setupRequested=true;Serial.println("SETUP_REQUESTED");
+        simulation.clear();setupRequested=true;Serial.println("SETUP_REQUESTED");
     }
+    if(!setupRequested){
+        bool pending;uint64_t key;size_t index,count;
+        portENTER_CRITICAL(&weatherMux);
+        pending=pendingDisasterAlert;key=pendingDisasterKey;index=pendingDisasterIndex;count=pendingDisasterCount;
+        pendingDisasterAlert=false;
+        portEXIT_CRITICAL(&weatherMux);
+        bool simulated=false;
+        if(pending){
+            if(simulation.active||simulation.armed)Serial.println("SIMULATION_CLEARED reason=real_alert_priority");
+            simulation.clear();
+        }else if(simulation.due(nowUs)){
+            char received[20]="----/--/-- --:--:--";
+            if(clockValid()){time_t now=time(nullptr);tm local={};localtime_r(&now,&local);strftime(received,sizeof(received),"%Y/%m/%d %H:%M:%S",&local);}
+            simulation.start(received);
+            // Exercise the real change detector with an isolated empty baseline.
+            // Both the official cache and its seen-case tracker remain untouched.
+            std::unique_ptr<DisasterTracker> detector(new DisasterTracker);
+            std::unique_ptr<DisasterList> fixture(new DisasterList);
+            detector->accept(*fixture);fixture->cases[0]=simulation.item;fixture->count=fixture->total=1;
+            const DisasterChanges changes=detector->accept(*fixture);
+            pending=changes.count>0;count=changes.count;index=0;key=disasterKey(simulation.item);simulated=true;
+            Serial.printf("SIMULATION_NEW_CASE count=%u official_cache_unchanged=1\n",unsigned(count));
+        }
+        if(pending){
+            if(countdown.running){countdown.stop();timerFinished=true;Serial.println("COUNTDOWN_CANCEL new_disaster=1");}
+            navigation.notify(key,index,nowUs);disasterStep=0;nextDisasterFrameUs=nowUs+4000000;
+            prg.clearClicks();action=PrgGesture::None;alertSwitched=true;dumpPages|=4;
+            Serial.printf("DISASTER_ALERT_START count=%u index=%u monotonic_us=%lld duration_us=3000000 simulated=%d\n",
+                unsigned(count),unsigned(index),(long long)nowUs,simulated);
+        }
+    }
+    if(navigation.alertHeld && (action&PrgGesture::StartTimer))action=PrgGesture::TogglePage;
     if(!setupRequested && !countdown.running && (action&PrgGesture::StartTimer)){
         countdown.start(nowUs);nextTimerFrameUs=nowUs;
         lastTimerPhase=TimerPhase::Normal;lastCountdownSecond=-1;
         timerFrames=timerFailures=0;prg.clearClicks();
         Serial.printf("COUNTDOWN_START monotonic_us=%lld duration_us=30000000 return_page=%s\n",
-            (long long)nowUs,weatherPage?"weather":"clock");
-    }else if(!setupRequested && !countdown.running && (action&PrgGesture::TogglePage)){
-        weatherPage=!weatherPage;buttonSwitched=true;
-        Serial.printf("BUTTON_PAGE name=%s\n",weatherPage?"weather":"clock");
+            (long long)nowUs,pageName());
+    }else if(!setupRequested && !countdown.running && (action&(PrgGesture::TogglePage|PrgGesture::AdvanceTwo))){
+        const DisasterView disaster=disasterSnapshot(false);
+        const bool acknowledged=navigation.alertHeld;
+        const unsigned steps=acknowledged?1:(action&PrgGesture::AdvanceTwo)?2:1;
+        for(unsigned i=0;i<steps;++i)navigation.press(disaster.count);
+        buttonSwitched=true;disasterStep=0;nextDisasterFrameUs=nowUs+4000000;dumpPages=7;
+        if(acknowledged){
+            Serial.println("DISASTER_ALERT_ACK return_page=clock");
+            if(simulation.active){simulation.clear();Serial.println("SIMULATION_CLEARED after_manual_boot=1");}
+        }
+        Serial.printf("BUTTON_PAGE name=%s index=%u count=%u steps=%u\n",pageName(),unsigned(disasterIndex),unsigned(disaster.count),steps);
     }
     bool busy;uint32_t generation;
     WeatherCache data=cacheSnapshot(&busy,&generation);
@@ -440,7 +591,7 @@ void loop(){
             countdown.stop();prg.clearClicks();timerFinished=true;
             Serial.printf("COUNTDOWN_DONE elapsed_us=%lld frames=%u errors=%u return_page=%s\n",
                 (long long)(nowUs-countdown.startedAt),timerFrames,timerFailures,
-                weatherPage?"weather":"clock");
+                pageName());
         }else{
             if(nowUs>=nextTimerFrameUs){
                 if(view.phase!=lastTimerPhase){
@@ -470,8 +621,21 @@ void loop(){
     if(!busy && !setupRequested && time(nullptr)>=data.nextNetwork){
         requestNetwork();data=cacheSnapshot(&busy,&generation);
     }
-    bool redraw=buttonSwitched||timerFinished;
-    if(generation!=seenGeneration){seenGeneration=generation;dumpPages=3;redraw=true;}
+    bool redraw=buttonSwitched||timerFinished||alertSwitched;
+    const int alertPhase=navigation.blinking(nowUs)?int((nowUs-navigation.alertStarted)/DisasterNavigation::HalfCycleUs):-1;
+    if(alertPhase!=shownAlertPhase){
+        if(alertPhase<0 && shownAlertPhase>=0 && navigation.alertHeld)
+            Serial.printf("DISASTER_ALERT_STEADY elapsed_us=%lld return_requires_button=1\n",(long long)(nowUs-navigation.alertStarted));
+        shownAlertPhase=alertPhase;redraw=true;
+    }
+    if(selectedPage==Page::Disaster && nowUs>=nextDisasterFrameUs){
+        const DisasterView disaster=disasterSnapshot(busy);
+        if(++disasterStep>=disasterDisplaySteps(disaster)){
+            disasterStep=0; // Only a BOOT press advances to another case.
+        }
+        nextDisasterFrameUs=nowUs+4000000;redraw=true;
+    }
+    if(generation!=seenGeneration){seenGeneration=generation;dumpPages=7;redraw=true;}
     time_t minute=time(nullptr)/60;
     if(minute!=shownMinute){shownMinute=minute;redraw=true;}
     if(redraw)showPage(data,busy,buttonSwitched);
@@ -486,5 +650,13 @@ void loop(){
                                    batteryEnable>=0?nextBatteryUs:0);
     // Waiting for a second/third click must not sleep until the next minute.
     if(prg.clicks && prg.settleAt<deadline)deadline=prg.settleAt;
+    if(selectedPage==Page::Disaster && nextDisasterFrameUs<deadline)deadline=nextDisasterFrameUs;
+    if(simulation.armed && simulation.dueUs<deadline)deadline=simulation.dueUs;
+    if(alertPhase>=0){
+        const int64_t blinkDeadline=navigation.alertStarted+(alertPhase+1)*DisasterNavigation::HalfCycleUs;
+        if(blinkDeadline<deadline)deadline=blinkDeadline;
+    }
+    const int64_t networkDeadline=esp_timer_get_time()+std::max<int64_t>(0,data.nextNetwork-time(nullptr))*1000000LL;
+    if(networkDeadline<deadline)deadline=networkDeadline;
     sleepUntil(deadline);
 }

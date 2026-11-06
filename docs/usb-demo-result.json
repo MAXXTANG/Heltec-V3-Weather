@@ -1,0 +1,14 @@
+{
+  "firmware": "1.4.1-usb-demo",
+  "simulation_command_sent_once": true,
+  "simulated_new_case_detected": true,
+  "hardware_notification_started": true,
+  "steady_after_blink": true,
+  "blink_elapsed_us": 3000511,
+  "boot_acknowledged_without_synthetic_press": true,
+  "returned_to_clock": true,
+  "simulation_cleared": true,
+  "official_case_cache_untouched": true,
+  "official_new_incident_test": false,
+  "optical_flash_timing_measured": false
+}
