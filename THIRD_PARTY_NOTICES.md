@@ -25,7 +25,9 @@ It does not replace the licenses of the materials below.
   under their own licenses. They are not vendored into this repository.
 - Pillow is used to generate assets, under its own license.
 
-This source-only release does not bundle compiled firmware or the above libraries.
+The Git source tree does not bundle compiled firmware. The v1.4.1-yilan Release
+separately distributes firmware, dependency license texts and corresponding Arduino
+framework source files; see docs/FLASH-RESTORE.md and the release DEPENDENCIES.md.
 If you distribute a compiled application, retain all required dependency notices
 and comply with their source/relinking requirements where applicable.
 

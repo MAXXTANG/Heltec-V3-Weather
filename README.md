@@ -1,6 +1,6 @@
 # Heltec V3：時鐘、礁溪天氣與宜蘭災情
 
-以 Heltec-V3-Weather v1.2.4 原始碼為基礎，新增宜蘭消防局災情頁。本分支為 **`宜蘭災情版`／v1.4.1-usb-demo**；原本的 `main` 與既有版本保持不變。此 repo 提供可編輯程式、完整字庫、測試、預覽與驗證摘要，不提交韌體二進位或裝置設定備份。
+以 Heltec-V3-Weather v1.2.4 原始碼為基礎，新增宜蘭消防局災情頁。本分支為 **`宜蘭災情版`／v1.4.1-usb-demo**；原本的 `main` 與既有版本保持不變。此 repo 提供可編輯程式、完整字庫、測試、預覽與驗證摘要，Git 歷史不提交韌體二進位或裝置設定備份。已另依使用者要求提供 [v1.4.1-yilan Release](https://github.com/MAXXTANG/Heltec-V3-Weather/releases/tag/v1.4.1-yilan)，附通用韌體、校驗碼及 [刷機／還原說明](docs/FLASH-RESTORE.md)。
 
 [目前狀態](STATUS.md) · [實機驗證](docs/VALIDATION.md) · [MIT 授權](LICENSE) · [第三方標示](THIRD_PARTY_NOTICES.md) · [原版 main](https://github.com/MAXXTANG/Heltec-V3-Weather/tree/main)
 

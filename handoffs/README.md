@@ -6,6 +6,8 @@
 
 ## 紀錄索引
 
+- [2026-11-06 Codex：宜蘭災情版 Release](2026-11-06-codex-yilan-release.md)
+
 - [2026-11-06 Codex：宜蘭災情版分支備份](2026-11-06-codex-yilan-disaster-backup.md)
 
 - [2026-11-04 Codex：建立共用知識庫入口](2026-11-04-codex-vault-bridge.md)
